@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daftar Tugas Sederhana</title>
+    <style>
+        /* Gaya CSS */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f9;
+        }
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        form, #list-container {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        input[type="text"], input[type="number"], input[type="date"], select {
+            padding: 8px;
+            margin-bottom: 10px;
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        button {
+            background-color: #5cb85c;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+        button:hover { background-color: #4cae4c; }
+        .delete-btn { background-color: #d9534f; }
+        .delete-btn:hover { background-color: #c9302c; }
+        .edit-btn { background-color: #f0ad4e; }
+        .edit-btn:hover { background-color: #ec971f; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .meta { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📝 Daftar Tugas Sederhana (CRUD)</h1>
+
+    <form id="task-form">
+        <h3>Tambah / Edit Tugas</h3>
+        <input type="hidden" id="task-id">
+
+        <label for="task-name">Judul Tugas:</label>
+        <input type="text" id="task-name" placeholder="Contoh: Kirim laporan" required>
+
+        <div class="row">
+            <div>
+                <label for="task-priority">Prioritas:</label>
+                <select id="task-priority">
+                    <option value="Rendah">Rendah</option>
+                    <option value="Sedang">Sedang</option>
+                    <option value="Tinggi">Tinggi</option>
+                </select>
+            </div>
+            <div>
+                <label for="task-due">Tanggal Jatuh Tempo:</label>
+                <input type="date" id="task-due">
+            </div>
+        </div>
+
+        <label for="task-est">Estimasi Waktu (menit):</label>
+        <input type="number" id="task-est" min="1" value="30" required>
+
+        <button type="submit" id="submit-btn">Tambah Tugas (CREATE)</button>
+        <button type="button" id="cancel-btn" style="display:none;">Batal Edit</button>
+    </form>
+
+    <hr>
+
+    <div id="list-container">
+        <div class="meta">
+            <h3>Daftar Tugas</h3>
+            <div>
+                <strong>Total Tugas: </strong><span id="total-tasks">0</span>
+                &nbsp;|&nbsp;
+                <strong>Estimasi Total: </strong><span id="total-est">0</span> menit
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Judul</th>
+                    <th>Prioritas</th>
+                    <th>Jatuh Tempo</th>
+                    <th>Estimasi (menit)</th>
+                    <th>Aksi</th>
+                </tr>
+            </thead>
+            <tbody id="task-list"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // Logika JS untuk CRUD tugas sederhana
+    let tasks = [];
+    let nextId = 1;
+
+    const taskForm = document.getElementById('task-form');
+    const taskListBody = document.getElementById('task-list');
+    const submitBtn = document.getElementById('submit-btn');
+    const cancelBtn = document.getElementById('cancel-btn');
+    const totalTasksEl = document.getElementById('total-tasks');
+    const totalEstEl = document.getElementById('total-est');
+
+    function renderTasks() {
+        taskListBody.innerHTML = '';
+        let totalEst = 0;
+
+        tasks.forEach(task => {
+            const est = task.est;
+            totalEst += est;
+
+            const row = taskListBody.insertRow();
+            const dueText = task.due ? new Date(task.due).toLocaleDateString('id-ID') : '-';
+
+            row.innerHTML = `
+                <td>${task.id}</td>
+                <td>${escapeHtml(task.name)}</td>
+                <td>${task.priority}</td>
+                <td>${dueText}</td>
+                <td>${est}</td>
+                <td>
+                    <button class="edit-btn" onclick="editTask(${task.id})">Edit</button>
+                    <button class="delete-btn" onclick="deleteTask(${task.id})">Hapus</button>
+                </td>
+            `;
+        });
+
+        totalTasksEl.textContent = tasks.length;
+        totalEstEl.textContent = totalEst;
+    }
+
+    taskForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const id = document.getElementById('task-id').value;
+        const name = document.getElementById('task-name').value.trim();
+        const priority = document.getElementById('task-priority').value;
+        const due = document.getElementById('task-due').value;
+        const est = parseInt(document.getElementById('task-est').value, 10);
+
+        if (!name) { alert('Judul tugas tidak boleh kosong.'); return; }
+
+        if (id) {
+            // UPDATE
+            const index = tasks.findIndex(t => t.id == id);
+            if (index !== -1) {
+                tasks[index] = { id: parseInt(id,10), name, priority, due: due || '', est };
+                alert(`Tugas ID ${id} berhasil diperbarui.`);
+                resetForm();
+            }
+        } else {
+            // CREATE
+            const newTask = { id: nextId++, name, priority, due: due || '', est };
+            tasks.push(newTask);
+            alert(`Tugas "${name}" berhasil ditambahkan.`);
+            taskForm.reset();
+        }
+
+        renderTasks();
+    });
+
+    window.editTask = function(id) {
+        const task = tasks.find(t => t.id === id);
+        if (task) {
+            document.getElementById('task-id').value = task.id;
+            document.getElementById('task-name').value = task.name;
+            document.getElementById('task-priority').value = task.priority;
+            document.getElementById('task-due').value = task.due || '';
+            document.getElementById('task-est').value = task.est;
+
+            submitBtn.textContent = 'Simpan Perubahan (UPDATE)';
+            cancelBtn.style.display = 'inline-block';
+            alert(`Anda sedang mengedit tugas ID ${id}: ${task.name}`);
+        }
+    }
+
+    window.deleteTask = function(id) {
+        if (confirm(`Yakin ingin menghapus tugas ID ${id}?`)) {
+            tasks = tasks.filter(t => t.id !== id);
+            alert(`Tugas ID ${id} berhasil dihapus.`);
+            renderTasks();
+            resetForm();
+        }
+    }
+
+    function resetForm() {
+        taskForm.reset();
+        document.getElementById('task-id').value = '';
+        submitBtn.textContent = 'Tambah Tugas (CREATE)';
+        cancelBtn.style.display = 'none';
+    }
+
+    cancelBtn.addEventListener('click', resetForm);
+
+    // Utility: escape HTML to avoid injection when rendering strings
+    function escapeHtml(unsafe) {
+        return unsafe
+             .replace(/&/g, "&amp;")
+             .replace(/</g, "&lt;")
+             .replace(/>/g, "&gt;")
+             .replace(/\"/g, "&quot;")
+             .replace(/'/g, "&#039;");
+    }
+
+    // Inisialisasi
+    renderTasks();
+</script>
+
+</body>
+</html>
